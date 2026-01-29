@@ -1,0 +1,576 @@
+%%% Part B – Digital Modulation %%%
+%%%%%%% ASK %%%%%%%
+N = 64;              % Number of bits
+Tb = 1;              % Bit period
+Rb = 1/Tb;           % Bit rate
+fc = 5*Rb;           % Carrier frequency
+fs = 100;            % Sampling frequency
+ts = 1/fs ;          % Sampling Time
+df = 1/(fs*N*ts)     % Frequency resolution
+
+% Generate a random binary sequence
+b = rand(1,N) > 0.5 ;
+
+% Time Vector
+t = 0:ts:N*Tb-ts;     % total points = N*fs
+
+% ASK Binary Data generation (Baseband signal)
+ASK = [];
+for i = 1:N
+  if b(i) == 1
+    ASK = [ASK ones(1,fs)] ;
+  else
+    ASK = [ASK zeros(1,fs)] ;
+  end
+end
+
+% ASK Transmitter
+c = cos(2*pi*fc*t);       % Carrier Signal
+ASK_Tx = ASK.*c ;
+
+% Time-Domain Plot (Transmitted Signal)
+figure;
+plot(t,ASK_Tx);
+axis ([0 N*Tb -1.5 1.5]) ; % Set axis limits to show pulse levels clearly
+xlabel('t(s)');
+ylabel('ASK_Tx');
+title('ASK Transmitted Signal (Time Domain)');
+grid on;
+
+% Spectrum of Transmitted Signal
+f = -0.5*fs : df : 0.5*fs-df ;
+ASK_Tx_f = fftshift(fft(ASK_Tx))*ts;
+figure(2)
+plot(f,abs(ASK_Tx_f)) ;
+xlabel('f(Hz)') ;
+ylabel('abs(ASK_Tx_f)') ;
+title('ASK Transmitted Signal (Frequency Domain)');
+grid on ;
+
+% Coherent ASK Receiver with Phase Error
+C_Rx1 = cos(2*pi*fc*t + (pi/6));
+C_Rx2 = cos(2*pi*fc*t + (pi/3));
+C_Rx3 = cos(2*pi*fc*t + (pi/2));
+
+ASK_Rx1 = ASK_Tx.*C_Rx1;
+ASK_Rx2 = ASK_Tx.*C_Rx2;
+ASK_Rx3 = ASK_Tx.*C_Rx3;
+
+% Spectrum of Received Signal before the low-pass filter
+ASK_Rx1_f = fftshift(fft(ASK_Rx1)) * ts;
+ASK_Rx2_f = fftshift(fft(ASK_Rx2)) * ts;
+ASK_Rx3_f = fftshift(fft(ASK_Rx3)) * ts;
+
+%%% Low-pass filter %%%
+H = abs(f) < 5
+
+% The output of the low pass filter (frequency domain)
+ASK_Rx1_filtered_f = H.*ASK_Rx1_f  ;
+ASK_Rx2_filtered_f = H.*ASK_Rx2_f  ;
+ASK_Rx3_filtered_f = H.*ASK_Rx3_f  ;
+
+% The output of the low pass filter (Time domain)
+ASK_Rx1_filtered_t = ifft(ifftshift(ASK_Rx1_filtered_f )) / ts;
+ASK_Rx2_filtered_t = ifft(ifftshift(ASK_Rx2_filtered_f )) / ts;
+ASK_Rx3_filtered_t = ifft(ifftshift(ASK_Rx3_filtered_f )) / ts;
+
+
+% Plotting The output of low-pass filter in Time domain
+figure;
+% First subplot for phase = 30°
+subplot(3,1,1);
+plot(t, ASK_Rx1_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 30°');
+grid on;
+
+% Second subplot for phase = 60°
+subplot(3,1,2);
+plot(t, ASK_Rx2_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 60°');
+grid on;
+
+% Third subplot for phase = 90°
+subplot(3,1,3);
+plot(t, ASK_Rx3_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 90°');
+grid on;
+
+% Plotting The output of low-pass filter in frequency domain
+figure;
+% Phase = 30°
+subplot(3,1,1);
+plot(f, abs(ASK_Rx1_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(ASK_Rx1_filtered_f)');
+title('Receiver Spectrum - Phase = 30°');
+grid on;
+
+% Phase = 60°
+subplot(3,1,2);
+plot(f, abs(ASK_Rx2_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(ASK_Rx2_filtered_f)');
+title('Receiver Spectrum - Phase = 60°');
+grid on;
+
+% Phase = 90°
+subplot(3,1,3);
+plot(f, abs(ASK_Rx3_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(ASK_Rx3_filtered_f)');
+title('Receiver Spectrum - Phase = 90°');
+grid on;
+
+%%% Decision Making device %%%
+
+decision_30 = zeros(1,N);
+decision_60 = zeros(1,N);
+decision_90 = zeros(1,N);
+
+th = 0.2;   % correct threshold to retrieve the data
+
+for i = 1:N
+    idx = (i-1)*fs + 1 : i*fs;
+    % The average value of the low-pass filter output
+    z1 = mean(ASK_Rx1_filtered_t(idx));
+    z2 = mean(ASK_Rx2_filtered_t(idx));
+    z3 = mean(ASK_Rx3_filtered_t(idx));
+    decision_30(i) = z1 > th;
+    decision_60(i) = z2 > th;
+    decision_90(i) = z3 > th;
+end
+
+%%% Subplot of Original ASK signal and Decision Making output %%%
+
+figure;
+% Original ASK signal (baseband)
+subplot(2,1,1);
+plot(t, ASK, 'LineWidth', 1.5);
+axis([0 N*Tb -0.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Original ASK Signal (Baseband)');
+grid on;
+
+% Decision output (bit decisions)
+subplot(2,1,2);
+stem(decision_30,'r','filled');
+hold on;
+stem(decision_60,'b','filled');
+stem(decision_90,'k','filled');
+xlabel('Bit index');
+ylabel('Decision');
+axis([0 N*Tb -0.5 1.5]);
+title('Decision Making Output');
+legend('30°','60°','90°');
+grid on;
+
+
+
+
+
+%%%%%%% PSK %%%%%%%
+
+%% Parameters
+N = 64;              % Number of bits
+Tb = 1;              % Bit period
+Rb = 1/Tb;           % Bit rate
+fc = 5*Rb;           % Carrier frequency (> Rb)
+fs = 100;            % Sampling frequency
+ts = 1/fs;           % Sampling interval
+df = 1/(N*Tb);       % Frequency resolution
+
+%% Time vector
+t = 0:ts:N*Tb-ts;     % total points = N*fs
+
+%% Generate random binary sequence
+b = rand(1,N) > 0.5;
+
+%% Baseband PSK signal generation
+PSK = [];
+for i = 1:N
+    if b(i) == 1
+        PSK = [PSK ones(1, fs)];    % bit 1 = 1
+    else
+        PSK = [PSK -ones(1, fs)];   % bit 0 = -1
+    end
+end
+
+%% PSK Transmitter
+c = cos(2*pi*fc*t);
+PSK_Tx = PSK.*c;
+
+%% Time-domain plot (Transmitted)
+figure;
+plot(t, PSK_Tx);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('PSK Transmitted Signal (Time Domain)');
+grid on;
+
+%% Frequency-domain plot (Transmitted)
+f = -fs/2 : df : fs/2 - df;
+PSK_Tx_f = fftshift(fft(PSK_Tx)) * ts;
+figure;
+plot(f, abs(PSK_Tx_f));
+xlabel('f(Hz)');
+ylabel('PSK Tx Spectrum');
+title('PSK Transmitted Signal (Frequency Domain)');
+grid on;
+
+%% Coherent PSK Receiver with Phase Errors %%
+C_Rx1 = cos(2*pi*fc*t + (pi/6));
+C_Rx2 = cos(2*pi*fc*t + (pi/3));
+C_Rx3 = cos(2*pi*fc*t + (pi/2));
+
+PSK_Rx1 = PSK_Tx.*C_Rx1;
+PSK_Rx2 = PSK_Tx.*C_Rx2;
+PSK_Rx3 = PSK_Tx.*C_Rx3;
+
+% Spectrum of Received Signal before the low-pass filter
+PSK_Rx1_f = fftshift(fft(PSK_Rx1)) * ts;
+PSK_Rx2_f = fftshift(fft(PSK_Rx2)) * ts;
+PSK_Rx3_f = fftshift(fft(PSK_Rx3)) * ts;
+
+%%% Low-pass filter %%%
+H = abs(f) < 5
+
+% The output of the low pass filter (frequency domain)
+PSK_Rx1_filtered_f = H.*PSK_Rx1_f  ;
+PSK_Rx2_filtered_f = H.*PSK_Rx2_f  ;
+PSK_Rx3_filtered_f = H.*PSK_Rx3_f  ;
+
+% The output of the low pass filter (Time domain)
+PSK_Rx1_filtered_t = real(ifft(ifftshift(PSK_Rx1_filtered_f )) / ts);
+PSK_Rx2_filtered_t = real(ifft(ifftshift(PSK_Rx2_filtered_f )) / ts);
+PSK_Rx3_filtered_t = real(ifft(ifftshift(PSK_Rx3_filtered_f )) / ts);
+
+
+% Plotting The output of low-pass filter in Time domain
+figure;
+% First subplot for phase = 30°
+subplot(3,1,1);
+plot(t, PSK_Rx1_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 30°');
+grid on;
+
+% Second subplot for phase = 60°
+subplot(3,1,2);
+plot(t, PSK_Rx2_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 60°');
+grid on;
+
+% Third subplot for phase = 90°
+subplot(3,1,3);
+plot(t, PSK_Rx3_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Receiver Output - Phase = 90°');
+grid on;
+
+% Plotting The output of low-pass filter in frequency domain
+figure;
+% Phase = 30°
+subplot(3,1,1);
+plot(f, abs(PSK_Rx1_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(PSK_Rx1_filtered_f)');
+title('Receiver Spectrum - Phase = 30°');
+grid on;
+
+% Phase = 60°
+subplot(3,1,2);
+plot(f, abs(PSK_Rx2_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(PSK_Rx2_filtered_f)');
+title('Receiver Spectrum - Phase = 60°');
+grid on;
+
+% Phase = 90°
+subplot(3,1,3);
+plot(f, abs(PSK_Rx3_filtered_f));
+xlabel('f(Hz)');
+ylabel('abs(PSK_Rx3_filtered_f)');
+title('Receiver Spectrum - Phase = 90°');
+grid on;
+
+%%% Decision Making device %%%
+
+decision_30 = zeros(1,N);
+decision_60 = zeros(1,N);
+decision_90 = zeros(1,N);
+
+th = 0;   % correct threshold to retrieve the data
+
+for i = 1:N
+    idx = (i-1)*fs + 1 : i*fs;
+    % The average value of the low-pass filter output
+    z1 = mean(PSK_Rx1_filtered_t(idx));
+    z2 = mean(PSK_Rx2_filtered_t(idx));
+    z3 = mean(PSK_Rx3_filtered_t(idx));
+
+    % Decision making
+    if z1 > th
+        decision_30(i) = 1;
+    else
+        decision_30(i) = -1;
+    end
+
+    if z2 > th
+        decision_60(i) = 1;
+    else
+        decision_60(i) = -1;
+    end
+
+    if z3 > th
+        decision_90(i) = 1;
+    else
+        decision_90(i) = -1;
+    end
+end
+
+
+%%% Subplot of Original PSK signal and Decision Making output %%%
+
+figure;
+% Original PSK signal (baseband)
+subplot(2,1,1);
+plot(t, PSK, 'LineWidth', 1.5);
+axis([0 N*Tb -0.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Original PSK Signal (Baseband)');
+grid on;
+
+% Decision output (bit decisions)
+subplot(2,1,2);
+stem(decision_30,'r','filled');
+hold on;
+stem(decision_60,'b','filled');
+stem(decision_90,'k','filled');
+xlabel('Bit index');
+ylabel('Decision');
+axis([0 N*Tb -0.5 1.5]);
+title('Decision Making Output');
+legend('30°','60°','90°');
+grid on;
+
+
+
+
+
+%%%%% FSK %%%%
+
+%Parameters
+N  = 64;              % Number of bits
+Tb = 1;               % Bit period
+Rb = 1/Tb;            % Bit rate
+fs = 100;             % Sampling frequency
+ts = 1/fs ;           % Sampling interval
+df = 1/(N*Tb);        % Frequency resolution
+
+f1 = 5*Rb;            % Frequency for bit '1'
+f0 = 2*Rb;            % Frequency for bit '0'
+
+%% Time vector
+t = 0:ts:N*Tb-ts;     % total points = N*fs
+
+%% Generate random binary sequence
+b = rand(1,N) > 0.5;  % unipolar 0/1
+
+%% Baseband FSK signal (for plotting)
+FSK = [];
+for i = 1:N
+    if b(i) == 1
+        FSK = [FSK ones(1,fs)];
+    else
+        FSK = [FSK zeros(1,fs)];
+    end
+end
+
+%% FSK Transmitter
+FSK_Tx = [];
+for i = 1:N
+    ti = (i-1)*Tb:ts:i*Tb-ts;
+    if b(i) == 1
+        FSK_Tx = [FSK_Tx cos(2*pi*f1*ti)];
+    else
+        FSK_Tx = [FSK_Tx cos(2*pi*f0*ti)];
+    end
+end
+
+%% Time-Domain Plot (Transmitted Signal)
+figure;
+plot(t, FSK_Tx);
+grid on;
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('FSK Transmitted Signal (Time Domain)');
+
+%% Frequency-Domain Plot (Transmitted Signal)
+f = -fs/2:df:fs/2-df;
+FSK_Tx_f = fftshift(fft(FSK_Tx)) * ts;
+figure;
+plot(f, abs(FSK_Tx_f));
+grid on;
+xlabel('f(Hz)');
+ylabel('FSK Tx Spectrum');
+title('FSK Transmitted Signal (Frequency Domain)');
+
+%% Coherent FSK Receiver with Phase Errors
+C_Rx1 = cos(2*pi*f1*t + pi/6);
+C_Rx2 = cos(2*pi*f1*t + pi/3);
+C_Rx3 = cos(2*pi*f1*t + pi/2);
+
+% Multiply by local oscillator
+FSK_Rx1 = FSK_Tx .* C_Rx1 - FSK_Tx .* cos(2*pi*f0*t + pi/6);
+FSK_Rx2 = FSK_Tx .* C_Rx2 - FSK_Tx .* cos(2*pi*f0*t + pi/3);
+FSK_Rx3 = FSK_Tx .* C_Rx3 - FSK_Tx .* cos(2*pi*f0*t + pi/2);
+
+% Spectrum of Received Signal before the low-pass filter
+FSK_Rx1_f = fftshift(fft(FSK_Rx1)) * ts;
+FSK_Rx2_f = fftshift(fft(FSK_Rx2)) * ts;
+FSK_Rx3_f = fftshift(fft(FSK_Rx3)) * ts;
+
+%%% Low-pass filter %%%
+H = abs(f) < 2 ;
+
+% The output of the low pass filter (frequency domain)
+FSK_Rx1_filtered_f = H.*FSK_Rx1_f  ;
+FSK_Rx2_filtered_f = H.*FSK_Rx2_f  ;
+FSK_Rx3_filtered_f = H.*FSK_Rx3_f  ;
+
+% The output of the low pass filter (Time domain)
+FSK_Rx1_filtered_t = real(ifft(ifftshift(FSK_Rx1_filtered_f )) / ts);
+FSK_Rx2_filtered_t = real(ifft(ifftshift(FSK_Rx2_filtered_f )) / ts);
+FSK_Rx3_filtered_t = real(ifft(ifftshift(FSK_Rx3_filtered_f )) / ts);
+
+
+% Plotting The output of low-pass filter in time domain
+figure;
+subplot(3,1,1);
+plot(t, FSK_Rx1_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('FSK Receiver Output - Phase = 30°');
+grid on;
+
+subplot(3,1,2);
+plot(t, FSK_Rx2_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('FSK Receiver Output - Phase = 60°');
+grid on;
+
+subplot(3,1,3);
+plot(t, FSK_Rx3_filtered_t);
+axis([0 N*Tb -1.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('FSK Receiver Output - Phase = 90°');
+grid on;
+
+
+% Plotting The output of low-pass filter in frequency domain
+
+figure;
+subplot(3,1,1);
+plot(f, abs(FSK_Rx1_filtered_f));
+xlabel('f(Hz)');
+ylabel('|FSK Rx1 Spectrum|');
+title('Receiver Spectrum - Phase = 30°');
+grid on;
+
+subplot(3,1,2);
+plot(f, abs(FSK_Rx2_filtered_f));
+xlabel('f(Hz)');
+ylabel('|FSK Rx2 Spectrum|');
+title('Receiver Spectrum - Phase = 60°');
+grid on;
+
+subplot(3,1,3);
+plot(f, abs(FSK_Rx3_filtered_f));
+xlabel('f(Hz)');
+ylabel('|FSK Rx3 Spectrum|');
+title('Receiver Spectrum - Phase = 90°');
+grid on;
+
+
+##%%% Decision Making device %%%
+
+decision_30 = zeros(1,N);
+decision_60 = zeros(1,N);
+decision_90 = zeros(1,N);
+
+th = 0;
+for i = 1:N
+    idx = (i-1)*fs + 1 : i*fs;
+    % The average value of the low-pass filter output
+    z1 = mean(FSK_Rx1_filtered_t(idx));
+    z2 = mean(FSK_Rx2_filtered_t(idx));
+    z3 = mean(FSK_Rx3_filtered_t(idx));
+
+    % Decision making
+    if z1 > th
+        decision_30(i) = 1;
+    else
+        decision_30(i) = -1;
+    end
+
+    if z2 > th
+        decision_60(i) = 1;
+    else
+        decision_60(i) = -1;
+    end
+
+    if z3 > th
+        decision_90(i) = 1;
+    else
+        decision_90(i) = -1;
+    end
+end
+
+%%% Subplot of Original FSK signal and Decision Making output %%%
+
+figure;
+% Original FSK signal (baseband)
+subplot(2,1,1);
+plot(t, FSK, 'LineWidth', 1.5);
+axis([0 N*Tb -0.5 1.5]);
+xlabel('t(s)');
+ylabel('Amplitude');
+title('Original FSK Signal (Baseband)');
+grid on;
+
+% Decision output (bit decisions)
+subplot(2,1,2);
+stem(decision_30,'r','filled');
+hold on;
+stem(decision_60,'b','filled');
+stem(decision_90,'k','filled');
+xlabel('Bit index');
+ylabel('Decision');
+axis([0 N*Tb -0.5 1.5]);
+title('Decision Making Output');
+legend('30°','60°','90°');
+grid on;
